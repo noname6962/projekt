@@ -6,9 +6,7 @@ import os
 app = Flask(__name__)
 
 # Funkcja do generowania skrótu z wiadomości wejściowej
-def generate_hash(message, algorithm="sha256"):
-    algorithm = input('Enter the hash type (md5, sha1, sha256): ')
-
+def generate_hash(message, algorithm):
     if algorithm == "md5":
         return hashlib.md5(message.encode()).hexdigest()
     elif algorithm == "sha1":
@@ -21,8 +19,8 @@ def generate_hash(message, algorithm="sha256"):
 # Funkcja do uruchamiania Hashcat w celu złamania skrótu
 def crack_hash(hash_value, hash_type):
     # Set the working directory for Hashcat
-    hashcat_directory = "G:\\projekt\\hashcat-6.2.5"
-    os.chdir(hashcat_directory)
+    os.chdir("G:\\projekt\\hashcat-6.2.6")
+    #subprocess.run(["del", "hashcat.potfile"])
 
     # Define the Hashcat command
     command = [
@@ -35,17 +33,60 @@ def crack_hash(hash_value, hash_type):
         "wordlist.txt",
         "--show"
     ]
+    result = run_command(command)
+    if result:
+        print(result)
+        print("hi")
+        return result
+    else:
+        print("hi2")
+        command = [
+        "hashcat.exe",
+        "-m", hash_type,
+        "-a", "0",
+        "-D", "2",
+        "-d", "1",
+        "-r", "rules/best64.rule",
+        hash_value,
+        "wordlist.txt",
+        "--show"
+        ]
 
+        result = run_command(command)
+        print('hi3')
+        if result:
+            return result
+        else:
+            command = [
+            "hashcat.exe",
+            "-m", hash_type,
+            "-a", "0",
+            "-D", "2",
+            "-d", "1",
+            "-r", "rules/rockyou-30000.rule",
+            hash_value,
+            "wordlist.txt",
+            "--show"
+            ]
+            result = run_command(command)
+            if  result:
+                return result
+            else:
+                return None
+
+
+def run_command(command):
     try:
         # Run the command and capture output
         result = subprocess.run(command, capture_output=True, text=True)
         if result.returncode == 0:
+            if result.stdout.strip() == '':
+                return None
             return result.stdout.strip().split(':',1)[1]
         else:
             return None
     except Exception as e:
         return str(e)
-
 
 @app.route('/')
 def index():
@@ -56,7 +97,7 @@ def index():
 def hash_message():
     data = request.json
     message = data.get('message', '')
-    algorithm = data.get('algorithm', 'sha256')
+    algorithm = data.get('algorithm', '')
 
     if not message:
         return jsonify({'error': 'No message provided'}), 400
