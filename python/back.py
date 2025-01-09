@@ -20,7 +20,11 @@ def generate_hash(message, algorithm):
 
 # Funkcja do uruchamiania Hashcat w celu złamania skrótu
 def crack_hash(hash_value, hash_type, retry):
-    os.chdir("G:\\projekt\\hashcat-6.2.6")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    path_parts = current_dir.split(os.sep)
+    projekt_path = os.sep.join(path_parts[:path_parts.index('projekt') + 1])
+    hashcat_dir = projekt_path + os.sep + 'hashcat-6.2.6'
+    os.chdir(hashcat_dir)
 
     command = [
         "hashcat.exe",
