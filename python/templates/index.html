@@ -22,6 +22,12 @@
         .results {
             margin-top: 20px;
         }
+        .tabs li.is-active a {
+            background-color: #3273dc; /* Bulma primary color */
+            border-bottom-color: #3273dc;
+            color: black;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -31,84 +37,222 @@
         <h1 class="title has-text-centered">Hashcat Web Interface</h1>
         <p class="subtitle has-text-centered">Easily generate and crack hashes</p>
 
-        <!-- Hash Type Selection -->
-        <div class="field">
-            <label class="label">Hash Type</label>
-            <div class="control">
-                <div class="select is-fullwidth">
-                    <select id="hashType">
-                        <option value="0">MD5</option>
-                        <option value="100">SHA1</option>
-                        <option value="1400">SHA256</option>
-                        <option value="1700">SHA512</option>
-                    </select>
-                </div>
-            </div>
+        <div class="tabs is-centered is-boxed">
+            <ul>
+                <li id="crack-tab" class="is-active"><a>Crack Hash</a></li>
+                <li id="generate-tab"><a>Generate Hash</a></li>
+            </ul>
         </div>
 
-        <!-- Hash Input -->
-        <div class="field">
-            <label class="label">Hash</label>
-            <div class="control">
-                <textarea class="textarea" id="hashInput" placeholder="Enter your hash here"></textarea>
-            </div>
-        </div>
 
-        <!-- Crack Button -->
-        <div class="field">
-            <div class="control">
-                <button class="button is-primary" id="crackButton">Crack Hash</button>
-            </div>
-        </div>
+        <div id="crack-content">  </div> <div id="generate-content" style="display: none;"></div>
 
-        <!-- Results Section -->
-        <div id="results" class="results"></div>
     </div>
 </section>
 
 <script>
-    // JavaScript to handle the form submission
-    const crackButton = document.getElementById('crackButton');
-    const resultsDiv = document.getElementById('results');
+    const crackTab = document.getElementById('crack-tab');
+    const generateTab = document.getElementById('generate-tab');
+    const crackContent = document.getElementById('crack-content');
+    const generateContent = document.getElementById('generate-content');
 
-    crackButton.addEventListener('click', () => {
-        // Get values from the inputs
-        const hashType = document.getElementById('hashType').value;
-        const hashInput = document.getElementById('hashInput').value;
 
-        // Validation
-        if (!hashInput.trim()) {
-            resultsDiv.innerHTML = `<p class="has-text-danger">Please enter a hash.</p>`;
-            return;
-        }
+    crackTab.addEventListener('click', () => {
+        crackTab.classList.add('is-active');
+        generateTab.classList.remove('is-active');
+        crackContent.style.display = 'block';
+        generateContent.style.display = 'none';
+        crackContent.innerHTML = `
+            <div class="field">
+                <label class="label">Hash Type</label>
+                <div class="control">
+                    <div class="select is-fullwidth">
+                        <select id="hashType">
+                            <option value="0">MD5</option>
+                            <option value="100">SHA1</option>
+                            <option value="1400">SHA256</option>
+                            <option value="1700">SHA512</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
 
-        // Send POST request to the backend
-        fetch('/crack', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                hash: hashInput,
-                hash_type: hashType
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            resultsDiv.innerHTML = ""; // Clear previous results
+            <div class="field">
+                <label class="label">Hash</label>
+                <div class="control">
+                    <textarea class="textarea" id="hashInput" placeholder="Enter your hash here"></textarea>
+                </div>
+            </div>
 
-            if (data.error) {
-                resultsDiv.innerHTML = `<p class="has-text-danger">${data.error}</p>`;
-            } else if (data.message) {
-                resultsDiv.innerHTML = `<p class="has-text-success">Password found: ${data.message}</p>`;
-            } else {
-                resultsDiv.innerHTML = `<p class="has-text-warning">Cracking... This might take a while. Check server logs for progress.</p>`;
+           <div class="field">
+                <div class="control">
+                    <button class="button is-primary" id="crackButton">Crack Hash</button>
+                </div>
+            </div>
+
+            <div id="results" class="results"></div>
+        `;
+
+        // JavaScript to handle the form submission
+        const crackButton = document.getElementById('crackButton');
+        const resultsDiv = document.getElementById('results');
+
+        crackButton.addEventListener('click', () => {
+            // Get values from the inputs
+            const hashType = document.getElementById('hashType').value;
+            const hashInput = document.getElementById('hashInput').value;
+
+            // Validation
+            if (!hashInput.trim()) {
+                resultsDiv.innerHTML = `<p class="has-text-danger">Please enter a hash.</p>`;
+                return;
             }
-        })
-        .catch(error => {
-            resultsDiv.innerHTML = `<p class="has-text-danger">Error: ${error}</p>`;
+
+            resultsDiv.innerHTML = `<p class="has-text-warning">Cracking...</p>`;
+
+            // Send POST request to the backend
+            fetch('/crack', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    hash: hashInput,
+                    hash_type: hashType,
+                    retry: false
+
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                resultsDiv.innerHTML = ""; // Clear previous results
+                if (data.message) {
+                    resultsDiv.innerHTML = `<p class="has-text-success">Password found: ${data.message}</p>`;
+                } else if (data.not_found) {
+                    if (confirm("Cracking... This might take a while. Do you want to wait longer?")) {
+                        resultsDiv.innerHTML = `<p class="has-text-warning">Cracking...</p>`;
+                        fetch('/crack', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                hash: hashInput,
+                                hash_type: hashType,
+                                retry: true
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.error) {
+                                resultsDiv.innerHTML = `<p class="has-text-danger">${data.error}</p>`;
+                            } else if (data.message) {
+                                resultsDiv.innerHTML = `<p class="has-text-success">Password found: ${data.message}</p>`;
+                            } else {
+                                resultsDiv.innerHTML = `<p class="has-text-warning">Failed to crack the hash.</p>`;
+                            }
+                        })
+                        .catch(error => {
+                            resultsDiv.innerHTML = `<p class="has-text-danger">Error: ${error}</p>`;
+                        });
+                    } else {
+                       resultsDiv.innerHTML = `<p class="has-text-warning">Failed to crack the hash.</p>`;
+                    }
+                }
+            })
+            .catch(error => {
+                resultsDiv.innerHTML = `<p class="has-text-danger">Error: ${error}</p>`;
+            });
         });
     });
+
+
+    generateTab.addEventListener('click', () => {
+        generateTab.classList.add('is-active');
+        crackTab.classList.remove('is-active');
+
+        generateContent.style.display = 'block'; // Show generate content
+        crackContent.style.display = 'none';    // Hide crack content
+
+        generateContent.innerHTML = `
+            <div class="field">
+                <label class="label">Hash Type</label>
+                <div class="control">
+                    <div class="select is-fullwidth">
+                        <select id="hashAlgorithm">
+                            <option value="md5">MD5</option>
+                            <option value="sha1">SHA1</option>
+                            <option value="sha256">SHA256</option>
+                            <option value="sha512">SHA512</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="label">Message</label>
+                <div class="control">
+                    <textarea class="textarea" id="messageInput" placeholder="Enter text to hash"></textarea>
+                </div>
+            </div>
+
+
+
+             <div class="field">
+                <div class="control">
+                    <button class="button is-primary" id="generateButton">Generate Hash</button>
+                </div>
+             </div>
+
+             <div id="hashResults" class="results"></div>
+        `;
+
+        const generateButton = document.getElementById('generateButton');
+        const hashResultsDiv = document.getElementById('hashResults');
+
+
+        generateButton.addEventListener('click', () => {
+
+            const messageInput = document.getElementById('messageInput').value;
+            const hashAlgorithm = document.getElementById('hashAlgorithm').value;
+
+            fetch('/hash', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ message: messageInput, algorithm: hashAlgorithm}) // Fixed key
+            })
+            .then(response => response.json())
+            .then(data => {
+               hashResultsDiv.innerHTML = "";  // Clear previous results
+
+                if (data.error) {
+                    hashResultsDiv.innerHTML = `<p class="has-text-danger">${data.error}</p>`;
+                } else {
+                    hashResultsDiv.innerHTML = `<p class="has-text-success">Generated Hash (${data.algorithm}): ${data.hash}</p>`;  // Access hash
+                }
+            })
+            .catch(error => {
+                 hashResultsDiv.innerHTML = `<p class="has-text-danger">Error: ${error}</p>`;
+            });
+         });
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const crackTab = document.getElementById('crack-tab');
+        const generateTab = document.getElementById('generate-tab');
+        const crackContent = document.getElementById('crack-content');
+        const generateContent = document.getElementById('generate-content');
+
+        crackTab.classList.add("is-active");
+        generateTab.classList.remove("is-active");
+        crackContent.style.display = "block";
+        generateContent.style.display = "none";
+
+        crackTab.click();
+    });
+
 </script>
 
 </body>

@@ -21,7 +21,7 @@ def generate_hash(message, algorithm="sha256"):
 # Funkcja do uruchamiania Hashcat w celu złamania skrótu
 def crack_hash():
     # Change directory to the Hashcat folder
-    hashcat_directory = "G:\\projekt\\hashcat-6.2.5"
+    hashcat_directory = "G:\\projekt\\hashcat-6.2.6"
     os.chdir(hashcat_directory)
 
     hash_type_input = input('Enter the hash type (md5, sha1, sha256): ')
@@ -30,15 +30,18 @@ def crack_hash():
     hash_type_map = {
         "md5": "0",
         "sha1": "100",
-        "sha256": "1400"
+        "sha256": "1400",
+        "sha512": "1700"
     }
 
     # Get the hash type code from the map
     hash_type = hash_type_map.get(hash_type_input.lower())
+    hash = input('Enter the hash to crack: ')
 
     if hash_type is None:
         print("Invalid hash type entered.")
     else:
+        subprocess.run(["del hashcat.potfile"])
         # Define the command to run Hashcat
         command = [
             "hashcat.exe",
@@ -46,8 +49,7 @@ def crack_hash():
             "-a", "0",
             "-D", "2",
             "-d", "1",
-            "-o", "output.txt",
-            "hash.txt",
+            hash,
             "wordlist.txt",
             "--show"
         ]
