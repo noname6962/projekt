@@ -5,6 +5,7 @@ import os
 
 app = Flask(__name__)
 
+
 # Funkcja do generowania skrótu z wiadomości wejściowej
 def generate_hash(message, algorithm):
     if algorithm == "md5":
@@ -16,81 +17,88 @@ def generate_hash(message, algorithm):
     else:
         return None
 
-# Funkcja do uruchamiania Hashcat w celu złamania skrótu
-def crack_hash(hash_value, hash_type):
-    # Set the working directory for Hashcat
-    os.chdir("G:\\projekt\\hashcat-6.2.6")
-    #subprocess.run(["del", "hashcat.potfile"])
 
-    # Define the Hashcat command
+# Funkcja do uruchamiania Hashcat w celu złamania skrótu
+def crack_hash(hash_value, hash_type, retry):
+    os.chdir("G:\\projekt\\hashcat-6.2.6")
+
     command = [
         "hashcat.exe",
         "-m", hash_type,
         "-a", "0",
         "-D", "2",
         "-d", "1",
+        '-o', 'output.txt',
         hash_value,
         "wordlist.txt",
-        "--show"
     ]
+
     result = run_command(command)
-    if result:
-        print(result)
-        print("hi")
+
+    if result != None:
         return result
-    else:
-        print("hi2")
+    elif retry:
         command = [
-        "hashcat.exe",
-        "-m", hash_type,
-        "-a", "0",
-        "-D", "2",
-        "-d", "1",
-        "-r", "rules/best64.rule",
-        hash_value,
-        "wordlist.txt",
-        "--show"
+            "hashcat.exe",
+            "-m", hash_type,
+            "-a", "0",
+            "-D", "2",
+            "-d", "1",
+            "-r", "rules/best64.rule",
+            '-o', 'output.txt',
+            hash_value,
+            "wordlist.txt",
         ]
 
         result = run_command(command)
-        print('hi3')
-        if result:
+        if result != None:
             return result
-        else:
-            command = [
+
+        command = [
             "hashcat.exe",
             "-m", hash_type,
             "-a", "0",
             "-D", "2",
             "-d", "1",
             "-r", "rules/rockyou-30000.rule",
+            '-o', 'output.txt',
             hash_value,
             "wordlist.txt",
-            "--show"
-            ]
-            result = run_command(command)
-            if  result:
-                return result
-            else:
-                return None
+        ]
+        result = run_command(command)
+
+        if result:
+            return result
+        else:
+            return None
+    else:
+        return None
 
 
 def run_command(command):
     try:
-        # Run the command and capture output
-        result = subprocess.run(command, capture_output=True, text=True)
-        if result.returncode == 0:
-            if result.stdout.strip() == '':
-                return None
-            return result.stdout.strip().split(':',1)[1]
-        else:
-            return None
-    except Exception as e:
-        return str(e)
+        os.remove('hashcat.potfile')
+        with open('output.txt', 'w') as file:
+            file.write('')
+    except:
+        pass
+
+    subprocess.run(command)
+
+    try:
+        with open('hashcat.potfile', 'r') as file:
+            result = file.read()
+    except:
+        return None
+    if result == '':
+        return None
+    return result.split(':', 1)[1]
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 # Endpoint do generowania hashów
 @app.route('/hash', methods=['POST'])
@@ -108,21 +116,25 @@ def hash_message():
     else:
         return jsonify({'error': 'Unsupported algorithm'}), 400
 
+
 # Endpoint do łamania hashów
 @app.route('/crack', methods=['POST'])
 def crack_hash_request():
     data = request.json
     hash_value = data.get('hash', '')
     hash_type = data.get('hash_type', '')
+    retry = data.get('retry', False)
 
     if not hash_value:
         return jsonify({'error': 'No hash provided'}), 400
 
-    cracked_message = crack_hash(hash_value, hash_type)
+    cracked_message = crack_hash(hash_value, hash_type, retry)
+
     if cracked_message:
         return jsonify({'message': cracked_message})
     else:
-        return jsonify({'error': 'Failed to crack the hash'}), 400
+        return jsonify({'not_found': 'Hash not cracked'})
+
 
 if __name__ == '__main__':
     app.run(debug=True)
